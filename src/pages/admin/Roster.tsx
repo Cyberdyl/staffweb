@@ -28,6 +28,7 @@ import {
 import { StaffModal } from '../../components/StaffModal'
 import { ReviewModal } from '../../components/ReviewModal'
 import { STAFF_STATUS } from '../../lib/labels'
+import { fmtDate, fmtRelative } from '../../lib/format'
 import type { StaffMember, StaffStatus } from '../../lib/types'
 
 type Filter = 'actifs' | 'tous' | 'anciens'
@@ -252,8 +253,14 @@ export default function Roster() {
                       />
                     )}
                   </div>
-                  <p className="truncate font-mono text-xs text-slate-500">
-                    {s.unique_id}
+                  <p className="truncate text-xs text-slate-500">
+                    <span className="font-mono">{s.unique_id}</span>
+                    {s.staff_since && (
+                      <span> · staff depuis le {fmtDate(s.staff_since)}</span>
+                    )}
+                    {s.last_up_at && (
+                      <span> · dernier up {fmtRelative(s.last_up_at)}</span>
+                    )}
                   </p>
                   <div className="mt-1.5 flex flex-wrap items-center gap-2">
                     <GradeBadge grade={s.grade} pole={s.pole} />

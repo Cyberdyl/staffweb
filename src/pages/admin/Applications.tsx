@@ -103,14 +103,19 @@ export default function Applications() {
                 }}
                 className="card flex w-full items-center gap-4 p-4 text-left transition hover:border-brand-500/30 hover:bg-night-800/70"
               >
-                <Avatar src={a.profile?.avatar_url} name={a.profile?.username} size={42} />
+                <Avatar src={a.profile?.avatar_url} name={a.pseudo ?? a.profile?.username} size={42} />
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-semibold text-white">
-                    {a.profile?.username ?? a.discord_tag ?? 'Candidat'}
+                    {a.pseudo ?? a.profile?.username ?? 'Candidat'}
                   </p>
                   <p className="truncate text-xs text-slate-500">
-                    {a.age ? `${a.age} ans · ` : ''}
-                    {a.timezone ?? ''} · {fmtRelative(a.created_at)}
+                    {[
+                      a.first_name,
+                      a.age ? `${a.age} ans` : null,
+                      fmtRelative(a.created_at),
+                    ]
+                      .filter(Boolean)
+                      .join(' · ')}
                   </p>
                 </div>
                 <span className={`chip hidden sm:inline-flex ${st.cls}`}>

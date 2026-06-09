@@ -1,100 +1,118 @@
 import { useEffect, useState } from 'react'
-import { Loader2, UserPlus, Save } from 'lucide-react'
+import { Loader2, UserPlus, Check } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import { useToast } from './Toast'
 import { Modal } from './Modal'
+import { useReference } from '../lib/useReference'
 import { POLES } from '../lib/config'
-import type { Grade, IgPermission, StaffMember } from '../lib/types'
+import type { Application } from '../lib/types'
 
-export function StaffModal({
+// Modale affichée quand un gérant accepte une candidature :
+// accepte ET (optionnellement) ajoute directement le candidat à l'effectif.
+export function AcceptStaffModal({
   open,
   onClose,
-  onSaved,
-  grades,
-  permissions,
-  existing,
+  application,
+  onAccepted,
 }: {
   open: boolean
   onClose: () => void
-  onSaved: () => void
-  grades: Grade[]
-  permissions: IgPermission[]
-  existing?: StaffMember | null
+  application: Application | null
+  onAccepted: () => void
 }) {
   const { session } = useAuth()
   const { notify } = useToast()
+  const { grades, permissions } = useReference()
+
   const [uniqueId, setUniqueId] = useState('')
-  const [displayName, setDisplayName] = useState('')
-  const [discordId, setDiscordId] = useState('')
-  const [gradeId, setGradeId] = useState('')
+  const [gradeId, setGradeId] = useState('helpeur')
   const [pole, setPole] = useState('')
   const [permissionId, setPermissionId] = useState('')
   const [authorized, setAuthorized] = useState(false)
-  const [notes, setNotes] = useState('')
   const [staffSince, setStaffSince] = useState('')
-  const [lastUp, setLastUp] = useState('')
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
     if (!open) return
-    setUniqueId(existing?.unique_id ?? '')
-    setDisplayName(existing?.display_name ?? '')
-    setDiscordId(existing?.discord_id ?? '')
-    setGradeId(existing?.grade_id ?? '')
-    setPole(existing?.pole ?? '')
-    setPermissionId(existing?.permission_id ?? '')
-    setAuthorized(existing?.perm_authorized ?? false)
-    setNotes(existing?.notes ?? '')
-    setStaffSince(existing?.staff_since?.slice(0, 10) ?? new Date().toISOString().slice(0, 10))
-    setLastUp(existing?.last_up_at?.slice(0, 10) ?? '')
-  }, [open, existing])
+    setUniqueId('')
+    setGradeId('helpeur')
+    const g = grades.find((x) => x.id === 'helpeur')
+    setPermissionId(g?.default_permission_id ?? '')
+    setPole('')
+    setAuthorized(false)
+    setStaffSince(new Date().toISOString().slice(0, 10))
+  }, [open, grades])
 
+  if (!application) return null
+
+  const displayName =
+    application.pseudo ?? application.profile?.username ?? 'Candidat'
   const selectedGrade = grades.find((g) => g.id === gradeId)
 
   function onGradeChange(id: string) {
     setGradeId(id)
     const g = grades.find((x) => x.id === id)
-    // Pré-remplit la permission par défaut du grade (création/changement)
     setPermissionId(g?.default_permission_id ?? '')
     if (!g?.has_pole) setPole('')
   }
 
-  async function save() {
-    if (!uniqueId.trim() || !displayName.trim()) {
-      notify('L’ID Unique et le pseudo sont obligatoires.', 'error')
+  async function acceptApplication(): Promise<boolean> {
+    const { error } = await supabase
+      .from('applications')
+      .update({ status: 'accepte', reviewed_by: session!.user.id })
+      .eq('id', application!.id)
+    if (error) {
+      notify('Erreur : ' + error.message, 'error')
+      return false
+    }
+    return true
+  }
+
+  // Accepter SANS ajouter à l'effectif
+  async function acceptOnly() {
+    setSaving(true)
+    const ok = await acceptApplication()
+    setSaving(false)
+    if (!ok) return
+    notify('Candidature acceptée. Le candidat reçoit un MP Discord. 🎉', 'success')
+    onAccepted()
+    onClose()
+  }
+
+  // Accepter + ajouter à l'effectif
+  async function acceptAndAdd() {
+    if (!uniqueId.trim()) {
+      notify('L’ID Unique est obligatoire pour l’ajouter à l’effectif.', 'error')
       return
     }
     setSaving(true)
-    const payload = {
+    const { error } = await supabase.from('staff_members').insert({
       unique_id: uniqueId.trim(),
-      display_name: displayName.trim(),
-      discord_id: discordId.trim() || null,
+      display_name: displayName,
+      discord_id: application!.profile?.discord_id ?? application!.discord_user_id ?? null,
+      profile_id: application!.user_id,
       grade_id: gradeId || null,
       pole: pole || null,
       permission_id: permissionId || null,
       perm_authorized: authorized,
-      notes: notes.trim() || null,
+      status: 'actif',
       staff_since: staffSince || null,
-      // midi local pour éviter le décalage de jour lié au fuseau horaire
-      last_up_at: lastUp ? new Date(`${lastUp}T12:00:00`).toISOString() : null,
-      updated_at: new Date().toISOString(),
-    }
-    const { error } = existing
-      ? await supabase.from('staff_members').update(payload).eq('id', existing.id)
-      : await supabase
-          .from('staff_members')
-          .insert({ ...payload, added_by: session!.user.id })
-    setSaving(false)
+      added_by: session!.user.id,
+    })
     if (error) {
+      setSaving(false)
       const msg = error.message.includes('duplicate')
-        ? 'Cet ID Unique existe déjà.'
+        ? 'Cet ID Unique existe déjà dans l’effectif.'
         : error.message
       notify('Erreur : ' + msg, 'error')
       return
     }
-    notify(existing ? 'Staff mis à jour.' : 'Staff ajouté à l’effectif.', 'success')
-    onSaved()
+    const ok = await acceptApplication()
+    setSaving(false)
+    if (!ok) return
+    notify(`${displayName} accepté et ajouté à l’effectif ! Il reçoit un MP Discord. 🎉`, 'success')
+    onAccepted()
     onClose()
   }
 
@@ -102,25 +120,33 @@ export function StaffModal({
     <Modal
       open={open}
       onClose={onClose}
-      title={existing ? 'Modifier le staff' : 'Ajouter un staff'}
+      size="lg"
+      title={`Accepter ${displayName}`}
       footer={
         <>
-          <button onClick={onClose} className="btn-ghost">
+          <button onClick={onClose} disabled={saving} className="btn-ghost mr-auto">
             Annuler
           </button>
-          <button onClick={save} disabled={saving} className="btn-primary">
+          <button onClick={acceptOnly} disabled={saving} className="btn-ghost">
+            <Check className="h-4 w-4" /> Accepter seulement
+          </button>
+          <button onClick={acceptAndAdd} disabled={saving} className="btn-primary">
             {saving ? (
               <Loader2 className="h-4 w-4 animate-spin" />
-            ) : existing ? (
-              <Save className="h-4 w-4" />
             ) : (
               <UserPlus className="h-4 w-4" />
             )}
-            Enregistrer
+            Accepter + ajouter à l’effectif
           </button>
         </>
       }
     >
+      <p className="mb-4 rounded-xl bg-brand-600/10 p-3 text-sm text-brand-100">
+        Renseigne son <strong>ID Unique</strong> et son grade de départ pour
+        l’ajouter directement à la hiérarchie. Le candidat sera prévenu par MP
+        Discord automatiquement.
+      </p>
+
       <div className="space-y-4">
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
@@ -131,30 +157,26 @@ export function StaffModal({
               onChange={(e) => setUniqueId(e.target.value)}
               placeholder="ex. license:xxxx / ID serveur"
             />
-            <p className="mt-1 text-xs text-slate-500">
-              Identifiant FiveM unique (license, steam, ID interne…).
-            </p>
           </div>
           <div>
-            <label className="label">Pseudo *</label>
+            <label className="label">Staff depuis</label>
             <input
+              type="date"
               className="input"
-              value={displayName}
-              onChange={(e) => setDisplayName(e.target.value)}
-              placeholder="Pseudo du staff"
+              value={staffSince}
+              onChange={(e) => setStaffSince(e.target.value)}
             />
           </div>
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
-            <label className="label">Grade</label>
+            <label className="label">Grade de départ</label>
             <select
               className="input"
               value={gradeId}
               onChange={(e) => onGradeChange(e.target.value)}
             >
-              <option value="">— Aucun —</option>
               {grades.map((g) => (
                 <option key={g.id} value={g.id}>
                   {g.label}
@@ -165,7 +187,8 @@ export function StaffModal({
           </div>
           <div>
             <label className="label">
-              Pôle {selectedGrade && !selectedGrade.has_pole && (
+              Pôle{' '}
+              {selectedGrade && !selectedGrade.has_pole && (
                 <span className="text-slate-600">(non requis)</span>
               )}
             </label>
@@ -223,49 +246,6 @@ export function StaffModal({
               ))}
             </div>
           </div>
-        </div>
-
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div>
-            <label className="label">Staff depuis</label>
-            <input
-              type="date"
-              className="input"
-              value={staffSince}
-              onChange={(e) => setStaffSince(e.target.value)}
-            />
-          </div>
-          <div>
-            <label className="label">Dernier up</label>
-            <input
-              type="date"
-              className="input"
-              value={lastUp}
-              onChange={(e) => setLastUp(e.target.value)}
-            />
-            <p className="mt-1 text-xs text-slate-500">
-              Mis à jour automatiquement quand un « up » est acté en réunion.
-            </p>
-          </div>
-        </div>
-
-        <div>
-          <label className="label">Discord ID (facultatif)</label>
-          <input
-            className="input font-mono"
-            value={discordId}
-            onChange={(e) => setDiscordId(e.target.value)}
-            placeholder="123456789012345678"
-          />
-        </div>
-
-        <div>
-          <label className="label">Notes (facultatif)</label>
-          <textarea
-            className="input min-h-[70px]"
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-          />
         </div>
       </div>
     </Modal>

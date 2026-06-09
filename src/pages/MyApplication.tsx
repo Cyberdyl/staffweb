@@ -118,20 +118,37 @@ export default function MyApplication() {
       <div className="card p-5">
         <h3 className="mb-3 font-semibold text-white">Tes réponses</h3>
         <dl className="space-y-3 text-sm">
+          <Row k="Prénom" v={app.first_name} />
+          <Row k="Pseudo" v={app.pseudo} />
+          <Row k="ID Discord" v={app.discord_user_id} />
           <Row k="Âge" v={app.age?.toString()} />
-          <Row k="Pays / fuseau" v={app.timezone} />
-          <Row k="Disponibilités" v={app.availability} />
-          <Row k="Micro" v={app.has_mic == null ? '—' : app.has_mic ? 'Oui' : 'Non'} />
+          <Row k="Micro de qualité" v={yn(app.has_mic)} />
+          <Row k="Découverte du serveur" v={app.discovery} />
+          <Row k="Sur FiveM depuis" v={app.fivem_since} />
+          <Row k="Sur le serveur depuis" v={app.server_since} />
+          <Row k="Temps de jeu" v={app.playtime} />
+          <Row k="Déjà sanctionné" v={yn(app.sanctioned)} />
+          <Row k="Raison de la sanction" v={app.sanctioned_reason} />
+          <Row k="Déjà staff FiveM" v={yn(app.was_staff)} />
+          <Row k="Serveur(s)" v={app.staff_servers} />
+          <Row k="Poste occupé" v={app.staff_role} />
           <Row k="Motivation" v={app.motivation} />
-          <Row k="Expérience" v={app.experience} />
+          <Row k="Qualités d’un bon staff" v={app.qualities} />
           <Row k="Mise en situation" v={app.scenario} />
-          <Row k="Outils" v={app.tools_knowledge} />
-          <Row k="Déjà sanctionné" v={app.already_sanctioned} />
+          <Row k="Pourquoi toi" v={app.why_you} />
+          <Row k="Ton apport" v={app.contribution} />
+          <Row k="Heures / semaine" v={app.hours_per_week} />
+          <Row k="Horaires de dispo" v={app.availability} />
+          <Row k="Règlement accepté" v={yn(app.rules_accepted)} />
           <Row k="Infos complémentaires" v={app.extra} />
         </dl>
       </div>
     </div>
   )
+}
+
+function yn(v?: boolean | null): string | null {
+  return v == null ? null : v ? 'Oui' : 'Non'
 }
 
 function Row({ k, v }: { k: string; v?: string | null }) {

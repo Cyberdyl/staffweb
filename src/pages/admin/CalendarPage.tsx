@@ -28,7 +28,7 @@ function managerColor(id?: string | null) {
 }
 
 function applicantName(a: Appointment) {
-  return a.application?.profile?.username ?? a.application?.discord_tag ?? 'Candidat'
+  return a.application?.pseudo ?? a.application?.profile?.username ?? 'Candidat'
 }
 
 export default function CalendarPage() {

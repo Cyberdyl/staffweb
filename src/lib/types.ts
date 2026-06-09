@@ -29,16 +29,29 @@ export interface Profile {
 export interface Application {
   id: string
   user_id: string
-  discord_tag: string | null
+  // --- Formulaire BlueStark FA ---
+  first_name: string | null
+  pseudo: string | null
+  discord_user_id: string | null
   age: number | null
-  timezone: string | null
-  availability: string | null
-  experience: string | null
-  motivation: string | null
-  scenario: string | null
-  tools_knowledge: string | null
   has_mic: boolean | null
-  already_sanctioned: string | null
+  discovery: string | null
+  fivem_since: string | null
+  server_since: string | null
+  playtime: string | null
+  sanctioned: boolean | null
+  sanctioned_reason: string | null
+  was_staff: boolean | null
+  staff_servers: string | null
+  staff_role: string | null
+  motivation: string | null
+  qualities: string | null
+  scenario: string | null
+  why_you: string | null
+  contribution: string | null
+  hours_per_week: string | null
+  availability: string | null
+  rules_accepted: boolean | null
   extra: string | null
   status: ApplicationStatus
   reviewed_by: string | null
@@ -98,6 +111,8 @@ export interface StaffMember {
   perm_authorized: boolean
   status: StaffStatus
   notes: string | null
+  staff_since: string | null
+  last_up_at: string | null
   added_by: string | null
   created_at: string
   updated_at: string

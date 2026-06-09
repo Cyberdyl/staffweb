@@ -152,6 +152,30 @@ C'est en ligne ! 🚀
 
 ---
 
+## 9. Notifications Discord (MP automatiques)
+
+Le site envoie des **MP Discord** automatiques : aux **gérants** quand une
+candidature arrive, et au **candidat** quand elle est acceptée/refusée.
+Il faut un **bot** Discord (2 min) :
+
+1. [Portail développeur](https://discord.com/developers/applications) → ton application → menu **Bot**.
+2. **Reset Token** → copie le **token** (c'est un secret !).
+3. Invite le bot sur ton serveur : menu **OAuth2 → URL Generator** → coche
+   le scope **bot** (aucune permission nécessaire) → ouvre l'URL générée →
+   ajoute-le à ton serveur. *(Le bot doit partager un serveur avec la
+   personne pour pouvoir lui écrire en MP.)*
+4. Enregistre le token dans la base — Supabase → **SQL Editor** :
+
+   ```sql
+   insert into public.app_secrets (key, value) values ('discord_bot_token', 'TON_TOKEN')
+   on conflict (key) do update set value = excluded.value;
+   ```
+
+> Les membres qui désactivent les MP venant du serveur ne recevront pas les
+> notifications (limitation Discord).
+
+---
+
 ## Dépannage
 
 | Problème | Solution |

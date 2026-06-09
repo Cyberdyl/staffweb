@@ -122,7 +122,7 @@ export function ScheduleModal({
               <option value="">— Sélectionner —</option>
               {applications.map((a) => (
                 <option key={a.id} value={a.id}>
-                  {a.profile?.username ?? a.discord_tag ?? 'Candidat'}
+                  {a.pseudo ?? a.profile?.username ?? 'Candidat'}
                 </option>
               ))}
             </select>

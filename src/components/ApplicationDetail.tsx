@@ -1,16 +1,21 @@
 import { useEffect, useState } from 'react'
-import { CalendarClock, CalendarPlus, Loader2, Save } from 'lucide-react'
+import { CalendarClock, CalendarPlus, Loader2, Save, MessageCircle } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import { useToast } from './Toast'
 import { Modal } from './Modal'
 import { Avatar } from './ui'
 import { ScheduleModal } from './ScheduleModal'
+import { AcceptStaffModal } from './AcceptStaffModal'
 import { APPLICATION_STATUS } from '../lib/labels'
 import { fmtDateTime, fmtSmartDay, fmtTime } from '../lib/format'
 import type { Application, ApplicationStatus, Appointment } from '../lib/types'
 
 const STATUSES: ApplicationStatus[] = ['en_attente', 'entretien', 'accepte', 'refuse']
+
+function yn(v?: boolean | null): string {
+  return v == null ? '—' : v ? 'Oui' : 'Non'
+}
 
 export function ApplicationDetail({
   application,
@@ -29,6 +34,7 @@ export function ApplicationDetail({
   const [saving, setSaving] = useState(false)
   const [appt, setAppt] = useState<Appointment | null>(null)
   const [scheduleOpen, setScheduleOpen] = useState(false)
+  const [acceptOpen, setAcceptOpen] = useState(false)
 
   const loadAppt = async () => {
     if (!application) return
@@ -51,7 +57,15 @@ export function ApplicationDetail({
 
   if (!application) return null
 
+  const displayName =
+    application.pseudo ?? application.profile?.username ?? 'Candidat'
+
   async function setStatus(status: ApplicationStatus) {
+    // L'acceptation passe par la modale dédiée (ajout à l'effectif).
+    if (status === 'accepte') {
+      setAcceptOpen(true)
+      return
+    }
     setSaving(true)
     const { error } = await supabase
       .from('applications')
@@ -59,7 +73,12 @@ export function ApplicationDetail({
       .eq('id', application!.id)
     setSaving(false)
     if (error) return notify('Erreur : ' + error.message, 'error')
-    notify(`Statut : ${APPLICATION_STATUS[status].label}`, 'success')
+    notify(
+      status === 'refuse'
+        ? 'Candidature refusée. Le candidat reçoit un MP Discord.'
+        : `Statut : ${APPLICATION_STATUS[status].label}`,
+      status === 'refuse' ? 'info' : 'success'
+    )
     onUpdated()
   }
 
@@ -78,18 +97,20 @@ export function ApplicationDetail({
   return (
     <>
       <Modal
-        open={open && !scheduleOpen}
+        open={open && !scheduleOpen && !acceptOpen}
         onClose={onClose}
         size="lg"
         title="Candidature"
       >
         {/* En-tête candidat */}
         <div className="mb-5 flex items-center gap-3">
-          <Avatar src={application.profile?.avatar_url} name={application.profile?.username} size={48} />
+          <Avatar
+            src={application.profile?.avatar_url}
+            name={displayName}
+            size={48}
+          />
           <div className="flex-1">
-            <p className="text-lg font-bold text-white">
-              {application.profile?.username ?? application.discord_tag ?? 'Candidat'}
-            </p>
+            <p className="text-lg font-bold text-white">{displayName}</p>
             <p className="text-xs text-slate-500">
               Envoyée le {fmtDateTime(application.created_at)}
             </p>
@@ -101,15 +122,35 @@ export function ApplicationDetail({
 
         {/* Réponses */}
         <div className="mb-5 grid gap-3 rounded-xl bg-night-900/60 p-4 text-sm sm:grid-cols-2">
+          <Field k="Prénom" v={application.first_name} />
+          <Field k="Pseudo" v={application.pseudo} />
+          <Field k="Email (compte)" v={application.profile?.email} />
+          <Field k="ID Discord" v={application.discord_user_id ?? application.profile?.discord_id} />
           <Field k="Âge" v={application.age?.toString()} />
-          <Field k="Pays / fuseau" v={application.timezone} />
-          <Field k="Disponibilités" v={application.availability} />
-          <Field k="Micro" v={application.has_mic == null ? '—' : application.has_mic ? 'Oui' : 'Non'} />
+          <Field k="Micro de qualité" v={yn(application.has_mic)} />
+          <Field k="Découverte du serveur" v={application.discovery} full />
+          <Field k="Sur FiveM depuis" v={application.fivem_since} />
+          <Field k="Sur le serveur depuis" v={application.server_since} />
+          <Field k="Temps de jeu" v={application.playtime} />
+          <Field k="Déjà sanctionné" v={yn(application.sanctioned)} />
+          {application.sanctioned && (
+            <Field k="Raison de la sanction" v={application.sanctioned_reason} full />
+          )}
+          <Field k="Déjà staff FiveM" v={yn(application.was_staff)} />
+          {application.was_staff && (
+            <>
+              <Field k="Serveur(s)" v={application.staff_servers} />
+              <Field k="Poste occupé" v={application.staff_role} full />
+            </>
+          )}
           <Field k="Motivation" v={application.motivation} full />
-          <Field k="Expérience" v={application.experience} full />
-          <Field k="Mise en situation" v={application.scenario} full />
-          <Field k="Outils (txAdmin…)" v={application.tools_knowledge} full />
-          <Field k="Déjà sanctionné" v={application.already_sanctioned} full />
+          <Field k="Qualités d’un bon staff" v={application.qualities} full />
+          <Field k="Réaction face à un joueur insultant" v={application.scenario} full />
+          <Field k="Pourquoi lui" v={application.why_you} full />
+          <Field k="Son apport" v={application.contribution} full />
+          <Field k="Heures / semaine" v={application.hours_per_week} />
+          <Field k="Horaires de dispo" v={application.availability} />
+          <Field k="Règlement accepté" v={yn(application.rules_accepted)} />
           <Field k="Infos complémentaires" v={application.extra} full />
         </div>
 
@@ -175,6 +216,11 @@ export function ApplicationDetail({
               )
             })}
           </div>
+          <p className="mt-2 flex items-center gap-1.5 text-xs text-slate-500">
+            <MessageCircle className="h-3.5 w-3.5" />
+            Accepté / Refusé : le candidat est prévenu automatiquement par MP
+            Discord.
+          </p>
         </div>
       </Modal>
 
@@ -185,6 +231,13 @@ export function ApplicationDetail({
         applications={[application]}
         presetApplicationId={application.id}
         existing={appt}
+      />
+
+      <AcceptStaffModal
+        open={acceptOpen}
+        onClose={() => setAcceptOpen(false)}
+        application={application}
+        onAccepted={onUpdated}
       />
     </>
   )
