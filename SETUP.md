@@ -152,11 +152,32 @@ C'est en ligne ! 🚀
 
 ---
 
-## 9. Notifications Discord (MP automatiques)
+## 9. Notifications Discord
 
-Le site envoie des **MP Discord** automatiques : aux **gérants** quand une
-candidature arrive, et au **candidat** quand elle est acceptée/refusée.
-Il faut un **bot** Discord (2 min) :
+Le site notifie automatiquement : les **gérants** quand une candidature
+arrive, et le **candidat** quand elle est acceptée/refusée. Deux modes,
+utilisables ensemble ou séparément :
+
+### Option A — Webhooks de salon (aucun bot, aucun droit admin)
+
+1. Dans Discord : **Paramètres du salon → Intégrations → Webhooks → Nouveau
+   webhook → Copier l'URL**.
+   - un salon **staff privé** → alertes « nouvelle candidature » (ping des gérants)
+   - *(facultatif)* un salon **visible des candidats** → ping neutre « ta
+     candidature a été traitée » (sans révéler la décision)
+2. Enregistre les URLs — Supabase → **SQL Editor** :
+
+   ```sql
+   insert into public.app_secrets (key, value) values
+     ('discord_webhook_staff',   'URL_WEBHOOK_SALON_STAFF'),
+     ('discord_webhook_results', 'URL_WEBHOOK_SALON_RESULTATS')
+   on conflict (key) do update set value = excluded.value;
+   ```
+
+### Option B — Bot Discord (vrais MP privés)
+
+Si un bot est présent sur un serveur en commun avec les membres, les
+décisions partent en **MP privé** (prioritaire sur le webhook résultats) :
 
 1. [Portail développeur](https://discord.com/developers/applications) → ton application → menu **Bot**.
 2. **Reset Token** → copie le **token** (c'est un secret !).
