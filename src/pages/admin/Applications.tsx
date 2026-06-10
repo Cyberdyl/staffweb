@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Inbox, ChevronRight, RefreshCw } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { useToast } from '../../components/Toast'
+import { useRealtimeTable } from '../../lib/useRealtimeTable'
 import { SectionTitle, Spinner, EmptyState, Avatar } from '../../components/ui'
 import { ApplicationDetail } from '../../components/ApplicationDetail'
 import { APPLICATION_STATUS } from '../../lib/labels'
@@ -41,6 +42,9 @@ export default function Applications() {
     load()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // Liste mise à jour en direct (nouvelle candidature, statut changé…).
+  useRealtimeTable('applications', load)
 
   const counts = useMemo(() => {
     const c: Record<string, number> = { tous: apps.length }

@@ -17,6 +17,7 @@ import {
 import { useAuth } from '../lib/auth'
 import { SERVER_NAME } from '../lib/config'
 import { Avatar, Logo } from './ui'
+import { RealtimeNotifications } from './RealtimeNotifications'
 
 const ROLE_LABEL: Record<string, string> = {
   applicant: 'Candidat',
@@ -151,6 +152,9 @@ export function Layout({ children }: { children: ReactNode }) {
 
   return (
     <div className="min-h-screen lg:flex">
+      {/* Notifications temps réel (gérants connectés uniquement) */}
+      {isManager && <RealtimeNotifications />}
+
       {/* Sidebar desktop */}
       <aside className="sticky top-0 hidden h-screen w-64 shrink-0 border-r border-white/5 bg-night-900/60 p-4 backdrop-blur lg:block">
         {sidebar}

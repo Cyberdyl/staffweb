@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { FileQuestion, CalendarClock, MessageSquareText } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
+import { useRealtimeTable } from '../lib/useRealtimeTable'
 import { SectionTitle, Spinner, EmptyState } from '../components/ui'
 import { APPLICATION_STATUS } from '../lib/labels'
 import { fmtDateTime, fmtSmartDay, fmtTime } from '../lib/format'
@@ -14,33 +15,37 @@ export default function MyApplication() {
   const [appt, setAppt] = useState<Appointment | null>(null)
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    let active = true
-    ;(async () => {
-      const { data } = await supabase
-        .from('applications')
-        .select('*')
-        .eq('user_id', session!.user.id)
-        .order('created_at', { ascending: false })
+  const load = useCallback(async () => {
+    const { data } = await supabase
+      .from('applications')
+      .select('*')
+      .eq('user_id', session!.user.id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+    const application = (data?.[0] as Application) ?? null
+    setApp(application)
+    if (application) {
+      const { data: ap } = await supabase
+        .from('appointments')
+        .select('*, manager:profiles!manager_id(*)')
+        .eq('application_id', application.id)
+        .order('scheduled_at', { ascending: true })
         .limit(1)
-      const application = (data?.[0] as Application) ?? null
-      if (!active) return
-      setApp(application)
-      if (application) {
-        const { data: ap } = await supabase
-          .from('appointments')
-          .select('*, manager:profiles!manager_id(*)')
-          .eq('application_id', application.id)
-          .order('scheduled_at', { ascending: true })
-          .limit(1)
-        if (active) setAppt((ap?.[0] as Appointment) ?? null)
-      }
-      if (active) setLoading(false)
-    })()
-    return () => {
-      active = false
+      setAppt((ap?.[0] as Appointment) ?? null)
+    } else {
+      setAppt(null)
     }
+    setLoading(false)
   }, [session])
+
+  useEffect(() => {
+    load()
+  }, [load])
+
+  // Mise à jour en direct : si le staff traite la candidature ou planifie
+  // un RDV pendant que le candidat regarde la page, il le voit aussitôt.
+  useRealtimeTable('applications', load)
+  useRealtimeTable('appointments', load)
 
   if (loading) return <Spinner label="Chargement de ta candidature…" />
 

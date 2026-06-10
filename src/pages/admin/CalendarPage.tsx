@@ -14,6 +14,7 @@ import { fr } from 'date-fns/locale'
 import { ChevronLeft, ChevronRight, CalendarPlus, Clock } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { useToast } from '../../components/Toast'
+import { useRealtimeTable } from '../../lib/useRealtimeTable'
 import { SectionTitle, Spinner } from '../../components/ui'
 import { ScheduleModal } from '../../components/ScheduleModal'
 import { fmtTime, fmtSmartDay } from '../../lib/format'
@@ -66,6 +67,10 @@ export default function CalendarPage() {
     load()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cursor])
+
+  // Synchro temps réel : un RDV ajouté/modifié/supprimé par un autre gérant
+  // apparaît immédiatement, sans recharger la page.
+  useRealtimeTable('appointments', load)
 
   useEffect(() => {
     supabase
