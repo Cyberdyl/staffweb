@@ -2,23 +2,32 @@
 //  Bot Discord BlueStark — synchronisation staff <-> Discord
 //
 //  Site -> Discord :
-//   - À chaque ajout/modif/suppression dans l'effectif (table staff_members),
-//     le bot attribue/retire les rôles : Staff de base + grade + pôle + perm IG
-//     (la perm seulement si "autorisé à jouer la perm").
-//   - ⛔ Si le membre a le rôle "Blacklisté Staff", AUCUN rôle n'est attribué
-//     et une note automatique est ajoutée à son dossier.
-//   - À chaque recrutement (INSERT), annonce dans le salon configuré :
-//     UUID + @mention + grade + perm couleur.
+//   - Ajout/modif dans l'effectif (staff_members) -> attribue les rôles :
+//     Staff de base + grade + pôle + perm IG (perm seulement si "autorisé").
+//   - ⛔ Membre avec le rôle "Blacklisté Staff" -> aucun rôle + note auto.
+//   - Recrutement (INSERT) ET changement de perm/grade (UPDATE) -> message dans
+//     le salon "demande de perm" : UUID + @joueur + @rôle-staff-à-prévenir
+//     + grade + perm couleur.
+//   - Suppression/départ -> retire les rôles gérés.
 //
-//  Discord -> Site :
-//   - Si un rôle "Avertissement 1/2/3" est ajouté à un membre du staff sur
-//     Discord, une note d'avertissement automatique est créée sur son dossier.
+//  Discord -> Site / modération :
+//   - Rôle "Avertissement 1/2/3" ajouté à un staff -> avertissement auto au dossier.
+//   - Salon "blacklist" : tout ID Discord posté -> BAN auto ("Membre blacklisté - Spam/Pub").
 //
-//  Le bot ne touche QUE les rôles qu'il connaît (mappés dans la base) :
-//  il ne retire jamais un rôle hors de son périmètre.
+//  Maintenance :
+//   - Reconciliation complète au démarrage + toutes les 10 min.
+//   - Keepalive base toutes les 72 h (anti mise en veille Supabase).
+//
+//  Le bot ne gère QUE les rôles mappés en base. Il ne touche jamais aux rôles
+//  Avertissement / Blacklist (lecture seule pour ceux-là).
 // ============================================================================
 import 'dotenv/config'
-import { Client, GatewayIntentBits, EmbedBuilder, Events } from 'discord.js'
+import {
+  Client,
+  GatewayIntentBits,
+  EmbedBuilder,
+  Events,
+} from 'discord.js'
 import { createClient } from '@supabase/supabase-js'
 
 const {
@@ -35,15 +44,21 @@ for (const [k, v] of Object.entries({ DISCORD_BOT_TOKEN, GUILD_ID, SUPABASE_URL,
   }
 }
 
+const BAN_REASON = 'Membre blacklisté - Spam/Pub'
 const sb = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 const client = new Client({
-  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers],
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMembers,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent,
+  ],
 })
 
 // ---------------------------------------------------------------- Mappings
-let grades = new Map() // id -> { label, short, discord_role_id, ... }
-let perms = new Map() // id -> { label, color, discord_role_id, ... }
-let config = {} // app_config key -> value
+let grades = new Map()
+let perms = new Map()
+let config = {}
 
 async function loadMappings() {
   const [g, p, c] = await Promise.all([
@@ -54,12 +69,8 @@ async function loadMappings() {
   grades = new Map((g.data ?? []).map((x) => [x.id, x]))
   perms = new Map((p.data ?? []).map((x) => [x.id, x]))
   config = Object.fromEntries((c.data ?? []).map((x) => [x.key, x.value]))
-  console.log(
-    `[mappings] ${grades.size} grades, ${perms.size} perms, config ok`
-  )
 }
 
-// Tous les rôles que le bot a le droit de gérer (et seulement ceux-là).
 function managedRoleIds() {
   const ids = new Set()
   for (const g of grades.values()) if (g.discord_role_id) ids.add(g.discord_role_id)
@@ -70,7 +81,6 @@ function managedRoleIds() {
   return ids
 }
 
-// Rôles attendus pour une ligne de l'effectif.
 function desiredRoles(row) {
   if (!row || !['actif', 'suspendu'].includes(row.status)) return new Set()
   const ids = new Set()
@@ -102,18 +112,17 @@ async function fetchMember(discordId) {
 // ------------------------------------------------------- Sync d'un staff
 async function syncMember(row, { silent = false } = {}) {
   if (!row?.discord_id) {
-    if (!silent) console.log(`[sync] ${row?.display_name ?? '?'} : pas de Discord ID, ignoré`)
+    if (!silent) console.log(`[sync] ${row?.display_name ?? '?'} : pas de Discord ID`)
     return
   }
   const member = await fetchMember(row.discord_id)
   if (!member) {
-    if (!silent) console.log(`[sync] ${row.display_name} (${row.discord_id}) : pas sur le serveur`)
+    if (!silent) console.log(`[sync] ${row.display_name} : pas sur le serveur`)
     return
   }
 
-  // ⛔ Blacklisté Staff : on n'attribue RIEN.
   if (config.role_blacklist && member.roles.cache.has(config.role_blacklist)) {
-    console.log(`[sync] ⛔ ${row.display_name} est Blacklisté Staff : rôles non attribués`)
+    console.log(`[sync] ⛔ ${row.display_name} Blacklisté Staff : rôles non attribués`)
     await sb.from('staff_reviews').insert({
       staff_member_id: row.id,
       type: 'note',
@@ -126,74 +135,80 @@ async function syncMember(row, { silent = false } = {}) {
   const desired = desiredRoles(row)
   const managed = managedRoleIds()
   const toAdd = [...desired].filter((r) => !member.roles.cache.has(r))
-  const toRemove = [...managed].filter(
-    (r) => member.roles.cache.has(r) && !desired.has(r)
-  )
+  const toRemove = [...managed].filter((r) => member.roles.cache.has(r) && !desired.has(r))
 
   for (const r of toAdd) {
-    await member.roles.add(r).then(
-      () => console.log(`[sync] + rôle ${r} -> ${row.display_name}`),
-      (e) => console.error(`[sync] échec ajout ${r} -> ${row.display_name} : ${e.message}`)
-    )
+    await member.roles.add(r).catch((e) => console.error(`[sync] +${r} -> ${row.display_name} : ${e.message}`))
   }
   for (const r of toRemove) {
-    await member.roles.remove(r).then(
-      () => console.log(`[sync] - rôle ${r} -> ${row.display_name}`),
-      (e) => console.error(`[sync] échec retrait ${r} -> ${row.display_name} : ${e.message}`)
-    )
+    await member.roles.remove(r).catch((e) => console.error(`[sync] -${r} -> ${row.display_name} : ${e.message}`))
   }
+  if (!silent) console.log(`[sync] ${row.display_name} : +${toAdd.length} / -${toRemove.length} rôle(s)`)
 }
 
-// Retire tous les rôles gérés (départ / suppression de l'effectif).
 async function removeAllManaged(row) {
   if (!row?.discord_id) return
   const member = await fetchMember(row.discord_id)
   if (!member) return
   for (const r of managedRoleIds()) {
     if (member.roles.cache.has(r)) {
-      await member.roles.remove(r).catch((e) =>
-        console.error(`[sync] échec retrait ${r} : ${e.message}`)
-      )
+      await member.roles.remove(r).catch((e) => console.error(`[sync] -${r} : ${e.message}`))
     }
   }
   console.log(`[sync] rôles staff retirés pour ${row.display_name}`)
 }
 
-// --------------------------------------------------- Annonce de recrutement
-async function announceRecruit(row) {
+// --------------------------------------------- Message "demande de perm"
+async function postPermRequest(row, reason) {
   if (!config.announce_channel_id) return
   try {
     const channel = await client.channels.fetch(config.announce_channel_id)
     const g = row.grade_id ? grades.get(row.grade_id) : null
     const p = row.permission_id ? perms.get(row.permission_id) : null
-    const color = p?.color ?? g?.color ?? '#3385ff'
+    const color = parseInt((p?.color ?? g?.color ?? '#3385ff').replace('#', ''), 16)
+
+    const pingUser = row.discord_id ? `<@${row.discord_id}>` : ''
+    const pingRole = config.role_perm_ping ? `<@&${config.role_perm_ping}>` : ''
 
     const embed = new EmbedBuilder()
-      .setTitle('🎉 Nouveau membre du staff !')
+      .setTitle('🎚️ Demande de permission')
       .setDescription(
         [
           `**UUID :** \`${row.unique_id}\``,
-          row.discord_id ? `**Membre :** <@${row.discord_id}>` : null,
+          row.discord_id ? `**Joueur :** <@${row.discord_id}>` : null,
           `**Grade :** ${g ? g.label + (g.short ? ` (${g.short})` : '') : '—'}`,
-          `**Perm IG :** ${p ? p.label : 'Aucune'}${
-            p ? (row.perm_authorized ? ' ✅ autorisée' : ' 🔒 non autorisée') : ''
-          }`,
+          `**Permission IG à poser :** ${p ? `**${p.label}**` : 'Aucune'}` +
+            (p ? (row.perm_authorized ? ' ✅ autorisée' : ' 🔒 en attente d’autorisation') : ''),
+          reason ? `*${reason}*` : null,
         ]
           .filter(Boolean)
           .join('\n')
       )
       .setColor(color)
-      .setFooter({ text: 'BlueStark — Recrutement staff' })
+      .setFooter({ text: 'BlueStark — Gestion staff' })
       .setTimestamp()
 
     await channel.send({
-      content: row.discord_id ? `<@${row.discord_id}>` : undefined,
+      content: [pingUser, pingRole].filter(Boolean).join(' '),
       embeds: [embed],
+      allowedMentions: {
+        users: row.discord_id ? [row.discord_id] : [],
+        roles: config.role_perm_ping ? [config.role_perm_ping] : [],
+      },
     })
-    console.log(`[annonce] recrutement de ${row.display_name} publié`)
+    console.log(`[perm] demande postée pour ${row.display_name} (${reason})`)
   } catch (e) {
-    console.error(`[annonce] échec : ${e.message}`)
+    console.error(`[perm] échec : ${e.message}`)
   }
+}
+
+function permRelevantChange(oldRow, newRow) {
+  return (
+    oldRow.permission_id !== newRow.permission_id ||
+    oldRow.perm_authorized !== newRow.perm_authorized ||
+    oldRow.grade_id !== newRow.grade_id ||
+    oldRow.pole !== newRow.pole
+  )
 }
 
 // ------------------------------------------- Avertissements Discord -> site
@@ -205,9 +220,7 @@ async function handleMemberUpdate(oldMember, newMember) {
   ].filter(([, id]) => id)
 
   for (const [n, roleId] of warnRoles) {
-    const added =
-      newMember.roles.cache.has(roleId) && !oldMember.roles.cache.has(roleId)
-    if (!added) continue
+    if (!(newMember.roles.cache.has(roleId) && !oldMember.roles.cache.has(roleId))) continue
     const { data: sm } = await sb
       .from('staff_members')
       .select('id, display_name')
@@ -218,46 +231,71 @@ async function handleMemberUpdate(oldMember, newMember) {
       staff_member_id: sm.id,
       type: 'avertissement',
       status: 'acte',
-      reason: `Rôle Discord « Avertissement ${n} » ajouté (détecté automatiquement par le bot).`,
+      reason: `Rôle Discord « Avertissement ${n} » ajouté (détecté automatiquement).`,
     })
     console.log(`[warn] Avertissement ${n} noté pour ${sm.display_name}`)
   }
 }
 
+// ----------------------------------------------- Auto-ban (salon blacklist)
+async function handleBlacklistMessage(msg) {
+  if (!config.autoban_channel_id || msg.channelId !== config.autoban_channel_id) return
+  if (msg.author?.bot) return
+  const ids = [...msg.content.matchAll(/\b(\d{17,20})\b/g)].map((m) => m[1])
+  if (ids.length === 0) return
+
+  const guild = await getGuild()
+  let banned = 0
+  for (const id of new Set(ids)) {
+    if (id === client.user.id || id === guild.ownerId) continue
+    try {
+      await guild.bans.create(id, { reason: BAN_REASON })
+      banned++
+      console.log(`[autoban] ${id} banni`)
+    } catch (e) {
+      console.error(`[autoban] échec ${id} : ${e.message}`)
+    }
+  }
+  if (banned > 0) await msg.react('🔨').catch(() => {})
+}
+
 // ------------------------------------------------------------- Temps réel
 function subscribeRealtime() {
   sb.channel('bot-staff-sync')
-    .on(
-      'postgres_changes',
-      { event: '*', schema: 'public', table: 'staff_members' },
-      async (payload) => {
-        await loadMappings() // au cas où grades/perms/config ont changé
-        if (payload.eventType === 'INSERT') {
-          await announceRecruit(payload.new)
-          await syncMember(payload.new)
-        } else if (payload.eventType === 'UPDATE') {
-          await syncMember(payload.new)
-        } else if (payload.eventType === 'DELETE') {
-          await removeAllManaged(payload.old)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'staff_members' }, async (payload) => {
+      await loadMappings()
+      if (payload.eventType === 'INSERT') {
+        await postPermRequest(payload.new, 'Nouveau recrutement')
+        await syncMember(payload.new)
+      } else if (payload.eventType === 'UPDATE') {
+        if (permRelevantChange(payload.old, payload.new)) {
+          await postPermRequest(payload.new, 'Changement de grade / permission')
         }
+        await syncMember(payload.new)
+      } else if (payload.eventType === 'DELETE') {
+        await removeAllManaged(payload.old)
       }
-    )
+    })
     .subscribe((status) => console.log(`[realtime] staff_members : ${status}`))
 }
 
-// Resynchronise tout l'effectif (au démarrage puis périodiquement).
 async function fullReconcile() {
   await loadMappings()
   const { data: all } = await sb.from('staff_members').select('*')
-  console.log(`[reconcile] ${all?.length ?? 0} membres de l'effectif à vérifier`)
   for (const row of all ?? []) {
-    if (['actif', 'suspendu'].includes(row.status)) {
-      await syncMember(row, { silent: true })
-    } else {
-      await removeAllManaged(row)
-    }
+    if (['actif', 'suspendu'].includes(row.status)) await syncMember(row, { silent: true })
+    else await removeAllManaged(row)
   }
-  console.log('[reconcile] terminé')
+  console.log(`[reconcile] ${all?.length ?? 0} membres vérifiés`)
+}
+
+// Maintien en éveil : écrit dans la base toutes les 72 h.
+async function keepalive() {
+  const { error } = await sb
+    .from('keepalive')
+    .update({ last_ping: new Date().toISOString() })
+    .eq('id', 1)
+  console.log(`[keepalive] ${error ? 'échec : ' + error.message : 'ok'}`)
 }
 
 // ------------------------------------------------------------------ Start
@@ -265,14 +303,16 @@ client.once(Events.ClientReady, async (c) => {
   console.log(`[bot] Connecté en tant que ${c.user.tag}`)
   await fullReconcile()
   subscribeRealtime()
-  // Filet de sécurité : resync complet toutes les 10 minutes.
   setInterval(fullReconcile, 10 * 60 * 1000)
+  keepalive()
+  setInterval(keepalive, 72 * 60 * 60 * 1000)
 })
 
-client.on(Events.GuildMemberUpdate, (oldM, newM) => {
-  handleMemberUpdate(oldM, newM).catch((e) =>
-    console.error(`[warn] erreur : ${e.message}`)
-  )
-})
+client.on(Events.GuildMemberUpdate, (o, n) =>
+  handleMemberUpdate(o, n).catch((e) => console.error(`[warn] ${e.message}`))
+)
+client.on(Events.MessageCreate, (m) =>
+  handleBlacklistMessage(m).catch((e) => console.error(`[autoban] ${e.message}`))
+)
 
 client.login(DISCORD_BOT_TOKEN)

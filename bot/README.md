@@ -24,19 +24,30 @@ Le bot ne touche **que** les rôles mappés dans la base (grades, perms, pôles,
 rôle de base). Il ne retire jamais un rôle hors de son périmètre, et ne touche
 jamais aux rôles Avertissement/Blacklist.
 
+## Ce qu'il fait aussi (modération)
+
+- **Salon « demande de perm »** : à chaque recrutement **et à chaque changement
+  de grade/perm**, le bot poste UUID + ping du joueur + ping du rôle staff à
+  prévenir + grade + perm couleur.
+- **Salon blacklist** : tout **ID Discord posté** dans ce salon est **banni
+  automatiquement** (raison : `Membre blacklisté - Spam/Pub`). Débannissable
+  manuellement ensuite.
+- **Keepalive** : écrit en base toutes les 72 h pour éviter la mise en veille
+  du projet Supabase.
+
 ## Prérequis Discord
 
-1. **Inviter le bot** sur le serveur :
+1. **Inviter le bot** sur le serveur (Gérer les rôles, Bannir, Voir/Envoyer
+   messages, Liens intégrés, Historique) :
    ```
-   https://discord.com/oauth2/authorize?client_id=1508777654457864412&scope=bot&permissions=268454912
+   https://discord.com/oauth2/authorize?client_id=1508777654457864412&scope=bot&permissions=268520452
    ```
-   (permissions : Gérer les rôles, Voir les salons, Envoyer des messages, Liens intégrés)
 2. ⚠️ **Hiérarchie des rôles** : dans Paramètres du serveur → Rôles, place le
    rôle du bot **AU-DESSUS** de tous les rôles qu'il doit gérer (grades, perms,
    pôles, Staff BlueStark), sinon Discord lui refusera l'attribution.
-3. Active l'intent membres : Portail développeur → ton app → **Bot** →
-   **Server Members Intent** → ON (nécessaire pour détecter les avertissements
-   et chercher les membres).
+3. Portail développeur → ton app → **Bot**, active les deux intents privilégiés :
+   - **Server Members Intent** (chercher les membres, détecter les avertissements)
+   - **Message Content Intent** (lire les IDs postés dans le salon blacklist)
 
 ## Configuration côté site
 

@@ -146,6 +146,14 @@ export function Layout({ children }: { children: ReactNode }) {
             <DiscordGlyph /> Se connecter avec Discord
           </button>
         )}
+        <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1 px-1 text-[11px] text-slate-600">
+          <Link to="/conditions" onClick={close} className="hover:text-slate-400">
+            Conditions d’utilisation
+          </Link>
+          <Link to="/confidentialite" onClick={close} className="hover:text-slate-400">
+            Confidentialité
+          </Link>
+        </div>
       </div>
     </div>
   )

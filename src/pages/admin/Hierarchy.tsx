@@ -14,7 +14,9 @@ const CATEGORIES: Grade['category'][] = ['fondation', 'gestion', 'staff']
 
 // Clés de configuration Discord éditables par le propriétaire.
 const CONFIG_KEYS: { key: string; label: string; hint?: string }[] = [
-  { key: 'announce_channel_id', label: 'Salon des annonces de recrutement', hint: 'ID du salon où le bot poste UUID + @mention + grade' },
+  { key: 'announce_channel_id', label: 'Salon « demande de perm »', hint: 'Le bot y poste UUID + @joueur + grade + perm (au recrutement et à chaque changement de perm)' },
+  { key: 'role_perm_ping', label: 'Rôle à ping en demande de perm', hint: 'Pingé en plus du joueur pour prévenir les staff qui posent les rôles' },
+  { key: 'autoban_channel_id', label: 'Salon blacklist (ban auto)', hint: 'Tout ID Discord posté dans ce salon est banni automatiquement' },
   { key: 'role_staff_base', label: 'Rôle « Staff BlueStark » (base)' },
   { key: 'role_blacklist', label: 'Rôle « Blacklisté Staff »', hint: 'Le bot refuse d’attribuer des rôles aux membres qui l’ont' },
   { key: 'role_warning_1', label: 'Rôle Avertissement 1' },

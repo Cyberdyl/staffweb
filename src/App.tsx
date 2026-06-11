@@ -7,6 +7,7 @@ import { IS_CONFIGURED } from './lib/config'
 import { NotConfigured } from './pages/NotConfigured'
 
 import Home from './pages/Home'
+import { Terms, Privacy } from './pages/Legal'
 import Apply from './pages/Apply'
 import MyApplication from './pages/MyApplication'
 import Applications from './pages/admin/Applications'
@@ -27,6 +28,8 @@ export default function App() {
           <Layout>
             <Routes>
               <Route path="/" element={<Home />} />
+              <Route path="/conditions" element={<Terms />} />
+              <Route path="/confidentialite" element={<Privacy />} />
               <Route
                 path="/postuler"
                 element={
