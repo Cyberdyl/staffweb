@@ -24,6 +24,7 @@ export const REVIEW_TYPE: Record<
   { label: string; cls: string; emoji: string }
 > = {
   avertissement: { label: 'Avertissement', emoji: '⚠️', cls: 'bg-amber-500/15 text-amber-300 ring-1 ring-amber-500/30' },
+  felicitation: { label: 'Félicitations', emoji: '🎉', cls: 'bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30' },
   up: { label: 'Montée (up)', emoji: '⬆️', cls: 'bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30' },
   down: { label: 'Descente (down)', emoji: '⬇️', cls: 'bg-orange-500/15 text-orange-300 ring-1 ring-orange-500/30' },
   vire: { label: 'Renvoi', emoji: '❌', cls: 'bg-rose-500/15 text-rose-300 ring-1 ring-rose-500/30' },

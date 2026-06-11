@@ -13,5 +13,5 @@ export const IS_CONFIGURED = Boolean(SUPABASE_URL && SUPABASE_ANON_KEY)
 export const POLES: Record<string, string> = {
   I: 'Illégal',
   L: 'Légal',
-  E: 'Entreprise',
+  E: 'Événementiel',
 }

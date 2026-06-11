@@ -8,6 +8,7 @@ export type StaffStatus = 'actif' | 'suspendu' | 'parti' | 'vire'
 
 export type ReviewType =
   | 'avertissement'
+  | 'felicitation'
   | 'up'
   | 'down'
   | 'vire'
@@ -33,6 +34,7 @@ export interface Application {
   first_name: string | null
   pseudo: string | null
   discord_user_id: string | null
+  fivem_uuid: string | null
   age: number | null
   has_mic: boolean | null
   discovery: string | null
@@ -83,6 +85,7 @@ export interface IgPermission {
   label: string
   color: string
   rank: number
+  discord_role_id: string | null
 }
 
 export interface Grade {
@@ -95,8 +98,19 @@ export interface Grade {
   has_pole: boolean
   note: string | null
   color: string | null
+  discord_role_id: string | null
   // jointures
   default_permission?: IgPermission | null
+}
+
+export interface StaffNote {
+  id: string
+  staff_member_id: string
+  author_id: string | null
+  content: string
+  created_at: string
+  // jointures
+  author?: Profile | null
 }
 
 export interface StaffMember {

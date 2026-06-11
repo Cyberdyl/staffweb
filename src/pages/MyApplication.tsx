@@ -126,6 +126,7 @@ export default function MyApplication() {
           <Row k="Prénom" v={app.first_name} />
           <Row k="Pseudo" v={app.pseudo} />
           <Row k="ID Discord" v={app.discord_user_id} />
+          <Row k="UUID" v={app.fivem_uuid} />
           <Row k="Âge" v={app.age?.toString()} />
           <Row k="Micro de qualité" v={yn(app.has_mic)} />
           <Row k="Découverte du serveur" v={app.discovery} />

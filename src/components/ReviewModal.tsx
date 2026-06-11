@@ -7,7 +7,7 @@ import { Modal } from './Modal'
 import { REVIEW_TYPE } from '../lib/labels'
 import type { ReviewType, StaffMember } from '../lib/types'
 
-const TYPES: ReviewType[] = ['avertissement', 'up', 'down', 'vire', 'note']
+const TYPES: ReviewType[] = ['avertissement', 'felicitation', 'up', 'down', 'vire', 'note']
 
 export function ReviewModal({
   open,

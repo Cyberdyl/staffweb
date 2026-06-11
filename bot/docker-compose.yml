@@ -1,0 +1,6 @@
+services:
+  staff-bot:
+    build: .
+    container_name: bluestark-staff-bot
+    env_file: .env
+    restart: unless-stopped

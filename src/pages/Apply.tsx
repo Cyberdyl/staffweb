@@ -12,6 +12,7 @@ interface FormState {
   first_name: string
   pseudo: string
   discord_user_id: string
+  fivem_uuid: string
   age: string
   has_mic: boolean | null
   discovery: string
@@ -38,6 +39,7 @@ const EMPTY: FormState = {
   first_name: '',
   pseudo: '',
   discord_user_id: '',
+  fivem_uuid: '',
   age: '',
   has_mic: null,
   discovery: '',
@@ -146,6 +148,7 @@ export default function Apply() {
     const missing: string[] = []
     if (!form.first_name.trim()) missing.push('Prénom')
     if (!form.pseudo.trim()) missing.push('Pseudo')
+    if (!form.fivem_uuid.trim()) missing.push('UUID')
     if (!form.age) missing.push('Âge')
     if (form.has_mic === null) missing.push('Micro')
     if (form.sanctioned === null) missing.push('Déjà sanctionné')
@@ -170,6 +173,7 @@ export default function Apply() {
       first_name: form.first_name.trim(),
       pseudo: form.pseudo.trim(),
       discord_user_id: form.discord_user_id.trim() || null,
+      fivem_uuid: form.fivem_uuid.trim(),
       age: form.age ? Number(form.age) : null,
       has_mic: form.has_mic,
       discovery: form.discovery.trim() || null,
@@ -276,6 +280,19 @@ export default function Apply() {
                 placeholder="16"
               />
             </div>
+          </div>
+          <div>
+            <label className="label">Ton UUID (identifiant unique en jeu) *</label>
+            <input
+              className="input font-mono"
+              value={form.fivem_uuid}
+              onChange={(e) => set('fivem_uuid', e.target.value)}
+              placeholder="ex. 1234"
+            />
+            <p className="mt-1 text-xs text-slate-500">
+              Visible en jeu — il servira à créer ton dossier staff si tu es
+              accepté.
+            </p>
           </div>
           <div>
             <label className="label">

@@ -35,14 +35,15 @@ export function AcceptStaffModal({
 
   useEffect(() => {
     if (!open) return
-    setUniqueId('')
+    // Pré-rempli avec l'UUID donné par le candidat dans sa candidature.
+    setUniqueId(application?.fivem_uuid ?? '')
     setGradeId('helpeur')
     const g = grades.find((x) => x.id === 'helpeur')
     setPermissionId(g?.default_permission_id ?? '')
     setPole('')
     setAuthorized(false)
     setStaffSince(new Date().toISOString().slice(0, 10))
-  }, [open, grades])
+  }, [open, grades, application])
 
   if (!application) return null
 

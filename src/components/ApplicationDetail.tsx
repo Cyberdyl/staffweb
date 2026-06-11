@@ -126,6 +126,7 @@ export function ApplicationDetail({
           <Field k="Pseudo" v={application.pseudo} />
           <Field k="Email (compte)" v={application.profile?.email} />
           <Field k="ID Discord" v={application.discord_user_id ?? application.profile?.discord_id} />
+          <Field k="UUID" v={application.fivem_uuid} />
           <Field k="Âge" v={application.age?.toString()} />
           <Field k="Micro de qualité" v={yn(application.has_mic)} />
           <Field k="Découverte du serveur" v={application.discovery} full />
